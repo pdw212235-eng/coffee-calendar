@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>커피 달력</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <main class="page">
+      <h1>커피 달력</h1>
+
+      <div id="status-loading" class="notice" role="status" hidden>기록을 불러오는 중입니다…</div>
+
+      <div id="status-unconfigured" class="notice notice-warning" role="alert" hidden>
+        <p><strong>설정이 필요합니다.</strong></p>
+        <p>config.js의 apiUrl에 Apps Script 웹 앱 주소를 넣어 주세요. 절차는 README.md에 있습니다.</p>
+      </div>
+
+      <div id="status-error" class="notice notice-warning" role="alert" hidden>
+        <p><strong>기록을 불러오지 못했습니다.</strong></p>
+        <p>기록이 없다는 뜻이 아닙니다. 서버 연결을 확인한 뒤 다시 시도해 주세요.</p>
+        <p id="status-error-saved" hidden><strong>방금 변경한 내용은 서버에 반영되었습니다. 다시 입력하지 마세요.</strong></p>
+        <button id="retry" type="button" class="button">다시 시도</button>
+      </div>
+
+      <div id="content" hidden>
+        <p id="skipped-warning" class="notice notice-warning" role="alert" hidden></p>
+
+        <section aria-labelledby="month-title">
+          <div class="month-bar">
+            <h2 id="month-title" aria-live="polite"></h2>
+            <div class="month-buttons">
+              <button id="prev-month" type="button" class="button">이전 달</button>
+              <button id="this-month" type="button" class="button">오늘</button>
+              <button id="next-month" type="button" class="button">다음 달</button>
+            </div>
+          </div>
+          <div class="weekdays" aria-hidden="true">
+            <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+          </div>
+          <div id="calendar" class="calendar"></div>
+        </section>
+
+        <section aria-labelledby="summary-title">
+          <h2 id="summary-title">사람별 합계</h2>
+          <table id="summary-table" class="summary">
+            <thead>
+              <tr>
+                <th scope="col">이름</th>
+                <th id="summary-month" scope="col" class="number"></th>
+                <th scope="col" class="number">전체</th>
+              </tr>
+            </thead>
+            <tbody id="summary-body"></tbody>
+          </table>
+          <p id="summary-empty" class="muted" hidden>아직 기록이 없습니다.</p>
+        </section>
+      </div>
+
+      <footer class="page-footer">
+        <button id="clear-password" type="button" class="button">이 기기에서 비밀번호 지우기</button>
+        <p id="password-status" class="muted" role="status"></p>
+      </footer>
+    </main>
+
+    <dialog id="record-dialog" class="dialog" aria-labelledby="dialog-title">
+      <fieldset id="dialog-fields" class="dialog-fields">
+        <div class="dialog-header">
+          <h2 id="dialog-title"></h2>
+          <button id="dialog-close" type="button" class="button">닫기</button>
+        </div>
+
+        <ul id="day-records" class="day-records"></ul>
+        <p id="day-empty" class="muted" hidden>이 날의 기록이 없습니다.</p>
+
+        <form id="record-form" class="record-form">
+          <h3 id="form-title"></h3>
+          <div class="fields">
+            <label class="field field-name">
+              <span>이름</span>
+              <input
+                id="input-name"
+                type="text"
+                list="name-options"
+                maxlength="30"
+                autocomplete="off"
+                required
+                pattern="\s*[^\s=+\-@].*"
+                title="=, +, -, @로 시작하지 않는 이름을 입력해 주세요."
+              />
+            </label>
+            <label class="field field-cups">
+              <span>잔수</span>
+              <input id="input-cups" type="number" inputmode="numeric" min="1" max="999" step="1" required />
+            </label>
+          </div>
+          <datalist id="name-options"></datalist>
+          <p id="dialog-error" class="error" role="alert" hidden></p>
+          <div class="form-buttons">
+            <button id="form-save" type="submit" class="button button-primary">저장</button>
+            <button id="form-cancel-edit" type="button" class="button" hidden>수정 취소</button>
+          </div>
+        </form>
+      </fieldset>
+    </dialog>
+
+    <dialog id="password-dialog" class="dialog dialog-small" aria-labelledby="password-message">
+      <form method="dialog" class="password-form">
+        <p id="password-message"></p>
+        <label class="field">
+          <span>비밀번호</span>
+          <input id="input-password" type="password" autocomplete="current-password" required />
+        </label>
+        <div class="form-buttons">
+          <button type="submit" value="ok" class="button button-primary">확인</button>
+          <button id="password-cancel" type="button" class="button">취소</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

@@ -1,0 +1,419 @@
+:root {
+  color-scheme: light dark;
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --text: #24201c;
+  --muted: #6f675f;
+  --line: #e2ddd6;
+  --outside-bg: #f4f1ec;
+  --accent: #6f4e37;
+  --on-accent: #ffffff;
+  --warning-bg: #fbf1dc;
+  --warning-line: #d9b56a;
+  --error: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171513;
+    --surface: #211e1b;
+    --text: #efeae4;
+    --muted: #a79e94;
+    --line: #3a352f;
+    --outside-bg: #1c1a17;
+    --accent: #d2ab86;
+    --on-accent: #1f1712;
+    --warning-bg: #352a14;
+    --warning-line: #7d6530;
+    --error: #f2a29c;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+p {
+  margin: 0;
+}
+
+.page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 16px 4px 32px;
+}
+
+.page > h1,
+.page-footer,
+.month-bar,
+.notice,
+section > h2,
+.summary,
+#summary-empty {
+  margin-left: 8px;
+  margin-right: 8px;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.notice {
+  padding: 12px;
+  border: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+
+.notice-warning {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+}
+
+.notice .button {
+  margin-top: 8px;
+}
+
+.button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 달력 */
+
+.month-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.month-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.weekdays,
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekdays {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding-bottom: 4px;
+}
+
+.calendar {
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 76px;
+  padding: 3px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.day-outside {
+  background: var(--outside-bg);
+  color: var(--muted);
+}
+
+.day-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 13px;
+}
+
+.day-today .day-number {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.entry {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.entry-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-cups {
+  flex: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.day-outside .entry-cups {
+  color: inherit;
+}
+
+/* 칸이 좁으면 잔수가 잘리지 않게 이름 아래로 내린다. 긴 이름만 말줄임된다. */
+@media (max-width: 560px) {
+  .entry {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
+@media (min-width: 561px) {
+  .page {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .day {
+    min-height: 92px;
+    padding: 6px;
+  }
+}
+
+/* 합계 */
+
+section + section {
+  margin-top: 28px;
+}
+
+section > h2 + * {
+  margin-top: 8px;
+}
+
+.summary {
+  width: calc(100% - 16px);
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary th,
+.summary td {
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.summary th {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.summary .number {
+  width: 64px;
+  text-align: right;
+}
+
+.page-footer {
+  margin-top: 28px;
+}
+
+.page-footer .muted {
+  margin-top: 8px;
+}
+
+/* 대화상자 */
+
+.dialog {
+  width: min(100% - 16px, 480px);
+  max-width: none;
+  max-height: 88dvh;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.dialog-small {
+  width: min(100% - 16px, 360px);
+}
+
+.dialog-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.dialog-header h2 {
+  font-size: 17px;
+}
+
+.day-records {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.day-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.day-record-text {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.day-record-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.record-form {
+  margin-top: 16px;
+}
+
+.fields {
+  display: flex;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.field-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field-cups {
+  flex: 0 0 88px;
+}
+
+/* 16px 미만이면 iOS가 입력할 때 화면을 확대한다. */
+input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.error {
+  margin-top: 8px;
+  color: var(--error);
+  font-size: 14px;
+}
+
+.form-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.form-buttons .button-primary {
+  flex: 1;
+}
+
+.password-form p {
+  margin-bottom: 12px;
+}

@@ -231,7 +231,15 @@ export function createFakeAppsScript({ password } = {}) {
   const properties = new Map();
   if (password !== undefined) properties.set('EDIT_PASSWORD', password);
 
-  const context = vm.createContext({
+  let clockOffsetMs = 0;
+  class FakeDate extends Date {
+    static now() {
+      return Date.now() + clockOffsetMs;
+    }
+  }
+
+  const services = {
+    Date: FakeDate,
     SpreadsheetApp: {
       getActiveSpreadsheet: () => spreadsheet,
       flush: () => {},
@@ -239,6 +247,14 @@ export function createFakeAppsScript({ password } = {}) {
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: (key) => (properties.has(key) ? properties.get(key) : null),
+        setProperty(key, value) {
+          properties.set(key, String(value));
+          return this;
+        },
+        deleteProperty(key) {
+          properties.delete(key);
+          return this;
+        },
       }),
     },
     LockService: {
@@ -274,13 +290,25 @@ export function createFakeAppsScript({ password } = {}) {
     },
     Utilities: { formatDate },
     Session: { getScriptTimeZone: () => SCRIPT_TIME_ZONE },
-  });
-  vm.runInContext(readFileSync(CODE_PATH, 'utf8'), context, { filename: 'Code.gs' });
+  };
+  const load = () => {
+    const fresh = vm.createContext({ ...services });
+    vm.runInContext(readFileSync(CODE_PATH, 'utf8'), fresh, { filename: 'Code.gs' });
+    return fresh;
+  };
+  let context = load();
 
   return {
     spreadsheet,
     lock,
     env,
+    // 실제 Apps Script는 요청마다 새로 실행되어 전역 변수가 남지 않는다.
+    restart() {
+      context = load();
+    },
+    advanceClock(ms) {
+      clockOffsetMs += ms;
+    },
     setup: () => context.setup(),
     doGet: (parameter = {}) => context.doGet({ parameter }),
     doPost: (contents) => context.doPost({ parameter: {}, postData: { contents, type: 'text/plain' } }),

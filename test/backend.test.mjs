@@ -50,7 +50,7 @@ test('setup을 두 번 실행해도 탭·헤더가 늘지 않고 기록이 남�
 test('저장하면 목록에 그대로 나오고 updatedAt이 시트에 남는다', () => {
   const script = ready();
   assert.deepEqual(save(script), { ok: true });
-  assert.deepEqual(script.list(), { ok: true, records: [record()], skipped: 0 });
+  assert.deepEqual(script.list(), { ok: true, records: [record()], skipped: 0, note: '' });
   assert.match(script.sheet().rawCell(2, 5), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
 });
 
@@ -125,8 +125,121 @@ test('비밀번호가 설정되지 않으면 어떤 비밀번호로도 쓸 수 �
     assert.deepEqual(save(script, record(), ''), refused);
     assert.deepEqual(script.post({ action: 'save', record: record() }), refused);
     assert.deepEqual(script.post({ password: 'x', action: 'delete', id: ID }), refused);
-    assert.deepEqual(script.list(), { ok: true, records: [], skipped: 0 });
+    assert.deepEqual(script.list(), { ok: true, records: [], skipped: 0, note: '' });
   }
+});
+
+const TEN_MINUTES = 10 * 60 * 1000;
+const WRONG = { ok: false, error: 'bad_password' };
+const LOCKED = { ok: false, error: 'locked' };
+
+// 요청마다 새로 실행되는 실제 환경처럼 매번 restart한다.
+function failPassword(script, times) {
+  const results = [];
+  for (let i = 0; i < times; i += 1) {
+    script.restart();
+    results.push(save(script, record({ id: `wrong-${i}` }), '틀린값'));
+  }
+  return results;
+}
+
+test('연속 10번 틀리면 잠기고, 잠금 중에는 맞는 비밀번호도 쓸 수 없으며 읽기는 된다', () => {
+  const script = ready();
+  const results = failPassword(script, 10);
+  assert.deepEqual(results.slice(0, 9), Array(9).fill(WRONG));
+  assert.deepEqual(results[9], LOCKED);
+
+  script.restart();
+  assert.deepEqual(save(script), LOCKED);
+  assert.deepEqual(script.post({ password: PASSWORD, action: 'delete', id: ID }), LOCKED);
+  assert.deepEqual(script.list(), { ok: true, records: [], skipped: 0, note: '' });
+});
+
+test('잠금은 10분 뒤 풀리고, 풀린 뒤에는 다시 10번까지 틀릴 수 있다', () => {
+  const script = ready();
+  failPassword(script, 10);
+
+  script.advanceClock(TEN_MINUTES - 1000);
+  assert.deepEqual(save(script), LOCKED);
+
+  script.advanceClock(1000);
+  assert.deepEqual(failPassword(script, 9), Array(9).fill(WRONG));
+  assert.deepEqual(save(script), { ok: true });
+  assert.deepEqual(script.list().records, [record()]);
+});
+
+test('잠금 중 시도는 잠금 시간을 늘리지 않는다', () => {
+  const script = ready();
+  failPassword(script, 10);
+  script.advanceClock(TEN_MINUTES - 1000);
+  assert.deepEqual(failPassword(script, 1), [LOCKED]);
+  script.advanceClock(1000);
+  assert.deepEqual(save(script), { ok: true });
+});
+
+test('맞는 비밀번호를 쓰면 틀린 횟수가 처음부터 다시 시작한다', () => {
+  const script = ready();
+  assert.deepEqual(failPassword(script, 9), Array(9).fill(WRONG));
+  assert.deepEqual(save(script), { ok: true });
+  assert.deepEqual(failPassword(script, 9), Array(9).fill(WRONG));
+  assert.deepEqual(failPassword(script, 1), [LOCKED]);
+});
+
+const saveNote = (script, note, password = PASSWORD) => script.post({ password, action: 'saveNote', note });
+
+test('메모를 저장·수정하면 비밀번호 없이 읽히고, 요청이 새로 실행돼도 남는다', () => {
+  const script = ready();
+  assert.equal(script.list().note, '');
+  assert.deepEqual(saveNote(script, '첫 메모'), { ok: true });
+  assert.deepEqual(saveNote(script, '고친 메모\n둘째 줄'), { ok: true });
+  script.restart();
+  assert.equal(script.list().note, '고친 메모\n둘째 줄');
+});
+
+test('메모는 앞뒤 공백만 지우고 =, - 로 시작해도 글자 그대로 저장한다', () => {
+  const script = ready();
+  saveNote(script, '  =SUM(A1)\n- 항목  ');
+  assert.equal(script.list().note, '=SUM(A1)\n- 항목');
+});
+
+test('메모는 300자까지 저장하고 넘으면 거부하며 기존 내용을 유지한다', () => {
+  const script = ready();
+  const full = '가'.repeat(300);
+  assert.deepEqual(saveNote(script, full), { ok: true });
+  const denied = { ok: false, error: 'invalid_note' };
+  assert.deepEqual(saveNote(script, '가'.repeat(301)), denied);
+  assert.deepEqual(saveNote(script, 123), denied);
+  assert.deepEqual(script.post({ password: PASSWORD, action: 'saveNote' }), denied);
+  assert.equal(script.list().note, full);
+});
+
+test('빈 내용으로 저장하면 메모가 지워진다', () => {
+  const script = ready();
+  saveNote(script, '지울 메모');
+  assert.deepEqual(saveNote(script, '   '), { ok: true });
+  assert.equal(script.list().note, '');
+});
+
+test('메모 저장도 비밀번호와 잠금 규칙을 똑같이 따른다', () => {
+  const script = ready();
+  saveNote(script, '원래 메모');
+  assert.deepEqual(saveNote(script, '바꾼 메모', '틀린값'), WRONG);
+
+  const unset = createFakeAppsScript({});
+  unset.setup();
+  assert.deepEqual(saveNote(unset, '메모', 'anything'), { ok: false, error: 'password_not_set' });
+
+  failPassword(script, 10);
+  assert.deepEqual(saveNote(script, '바꾼 메모'), LOCKED);
+  assert.equal(script.list().note, '원래 메모');
+});
+
+test('메모 저장은 기록을 건드리지 않는다', () => {
+  const script = ready();
+  save(script);
+  saveNote(script, '메모');
+  assert.deepEqual(script.list().records, [record()]);
+  assert.equal(dataRowCount(script), 1);
 });
 
 test('잘못된 날짜를 거부한다', () => {
@@ -212,7 +325,7 @@ test('시트에서 직접 고쳐 Date가 된 셀은 시트 시간대 기준 날�
   save(script);
   script.sheet().humanType(2, 2, '2026-11-05', { clearFormat: true });
   assert.equal(Object.prototype.toString.call(script.sheet().rawCell(2, 2)), '[object Date]');
-  assert.deepEqual(script.list(), { ok: true, records: [record({ date: '2026-11-05' })], skipped: 0 });
+  assert.deepEqual(script.list(), { ok: true, records: [record({ date: '2026-11-05' })], skipped: 0, note: '' });
 });
 
 test('Date가 된 행을 화면에서 수정하면 다시 문자열로 저장된다', () => {
@@ -255,7 +368,7 @@ test('통째로 비운 행은 건너뛴 행으로 세지 않는다', () => {
   save(script);
   save(script, record({ id: 'second-id' }));
   script.sheet().humanRow(2, ['', '', '', '', '']);
-  assert.deepEqual(script.list(), { ok: true, records: [record({ id: 'second-id' })], skipped: 0 });
+  assert.deepEqual(script.list(), { ok: true, records: [record({ id: 'second-id' })], skipped: 0, note: '' });
 });
 
 test('목록은 날짜 오름차순이다', () => {
@@ -277,22 +390,19 @@ test('쓰기는 10초 잠금 안에서 일어나고 끝나면 풀린다', () => 
   const setupWaits = script.lock.waits.length;
   save(script);
   script.post({ password: PASSWORD, action: 'delete', id: ID });
-  assert.deepEqual(script.lock.waits.slice(setupWaits), [10000, 10000]);
+  const waits = script.lock.waits.slice(setupWaits);
+  assert.ok(waits.length >= 2);
+  assert.ok(waits.every((timeoutMs) => timeoutMs === 10000));
   assert.equal(script.env.unlockedWrites, 0);
   assert.equal(script.lock.held, false);
 });
 
-test('잠금을 못 얻으면 쓰지 않고, 거부된 요청은 잠금을 잡지 않는다', () => {
+test('잠금을 못 얻으면 쓰지 않는다', () => {
   const script = ready();
   script.lock.failNextWait = true;
   assert.throws(() => save(script), /시간이 초과/);
   assert.equal(dataRowCount(script), 0);
   assert.equal(script.lock.held, false);
-
-  const waits = script.lock.waits.length;
-  save(script, record({ cups: 0 }));
-  save(script, record(), '틀린값');
-  assert.equal(script.lock.waits.length, waits);
 });
 
 test('쓰기 중 오류가 나도 잠금이 풀린다', () => {

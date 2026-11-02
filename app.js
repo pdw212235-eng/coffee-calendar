@@ -6,7 +6,9 @@ const PASSWORD_KEY = 'coffee-calendar.password';
 const WRITE_ERRORS = {
   password_not_set: '서버에 비밀번호가 아직 설정되지 않았습니다. README.md의 설정 절차를 확인해 주세요.',
   invalid_record: '입력값을 확인해 주세요. 이름은 1~30자이고 =, +, -, @로 시작할 수 없으며, 잔수는 1~999입니다.',
+  invalid_note: '메모는 300자까지 저장할 수 있습니다.',
   bad_request: '요청 형식이 잘못되었습니다.',
+  locked: '비밀번호를 여러 번 틀려 저장이 잠겼습니다. 최대 10분 뒤 다시 시도해 주세요.',
 };
 const NETWORK_ERROR = '서버 응답을 받지 못했습니다. 반영되지 않았을 수 있으니 다시 시도해 주세요.';
 
@@ -21,6 +23,8 @@ const state = {
   status: 'loading', // loading | ready | error | unconfigured
   records: [],
   skipped: 0,
+  note: '',
+  noteDirty: false,
   view: currentMonth(),
   // 대화상자가 열려 있을 때만 값이 있다: { date, newId, editingId, confirmingDeleteId, busy }
   dialog: null,
@@ -124,6 +128,7 @@ async function loadRecords() {
     const data = await fetchRecords();
     state.records = data.records;
     state.skipped = Number(data.skipped) || 0;
+    state.note = data.note ?? '';
     state.status = 'ready';
     $('status-error-saved').hidden = true;
   } catch {
@@ -161,6 +166,7 @@ function render() {
   warning.textContent = `형식이 맞지 않아 건너뛴 시트 행 ${state.skipped}개: 달력과 합계에 포함되지 않았습니다. 시트를 확인해 주세요.`;
 
   renderCalendar();
+  renderNote();
   renderSummary();
   renderNameOptions();
   if (state.dialog) {
@@ -196,6 +202,14 @@ function renderCalendar() {
     return button;
   });
   $('calendar').replaceChildren(...cells);
+}
+
+function renderNote() {
+  // 기록을 저장해 목록을 다시 읽어도 쓰고 있던 메모를 덮어쓰면 안 된다.
+  if (!state.noteDirty) {
+    $('note-input').value = state.note;
+  }
+  $('note-count').textContent = `${$('note-input').value.length}/300`;
 }
 
 function renderSummary() {
@@ -319,9 +333,7 @@ async function runWrite(payload) {
     if (!(await sendWrite(payload))) {
       return false;
     }
-    await loadRecords();
-    // 쓰기는 끝났는데 재조회만 실패한 경우다. 같은 내용을 또 입력하면 중복 기록이 된다.
-    $('status-error-saved').hidden = state.status !== 'error';
+    await reloadAfterWrite();
     return true;
   } catch (error) {
     showError(error.cause === 'server' ? error.message : NETWORK_ERROR);
@@ -329,6 +341,39 @@ async function runWrite(payload) {
   } finally {
     setBusy(false);
   }
+}
+
+async function reloadAfterWrite() {
+  await loadRecords();
+  // 쓰기는 끝났는데 재조회만 실패한 경우다. 같은 내용을 또 입력하면 중복 기록이 된다.
+  $('status-error-saved').hidden = state.status !== 'error';
+}
+
+async function saveNote(event) {
+  event.preventDefault();
+  $('note-fields').disabled = true;
+  $('note-save').textContent = '저장 중…';
+  $('note-error').hidden = true;
+  $('note-status').textContent = '';
+  try {
+    if (await sendWrite({ action: 'saveNote', note: $('note-input').value })) {
+      state.noteDirty = false;
+      await reloadAfterWrite();
+      $('note-status').textContent = '저장했습니다.';
+    }
+  } catch (error) {
+    $('note-error').textContent = error.cause === 'server' ? error.message : NETWORK_ERROR;
+    $('note-error').hidden = false;
+  } finally {
+    $('note-fields').disabled = false;
+    $('note-save').textContent = '저장';
+  }
+}
+
+function onNoteInput() {
+  state.noteDirty = $('note-input').value !== state.note;
+  $('note-status').textContent = '';
+  renderNote();
 }
 
 async function saveRecord(event) {
@@ -398,6 +443,8 @@ $('next-month').addEventListener('click', () => moveView(shiftMonth(state.view, 
 $('this-month').addEventListener('click', () => moveView(currentMonth()));
 $('clear-password').addEventListener('click', clearSavedPassword);
 $('record-form').addEventListener('submit', saveRecord);
+$('note-form').addEventListener('submit', saveNote);
+$('note-input').addEventListener('input', onNoteInput);
 $('form-cancel-edit').addEventListener('click', () => {
   showError('');
   fillForm(null);

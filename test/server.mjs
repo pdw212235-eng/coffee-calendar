@@ -1,6 +1,7 @@
 // 로컬 확인용 서버. 정적 파일과 가짜 Apps Script를 묶어 제공한다. 데이터는 메모리에만 있다.
 //   POST /__fail?on=1   /api가 500을 돌려주게 한다 (?on=0으로 복구)
 //   POST /__bad-row     형식이 틀린 행을 시트에 넣는다 (skipped 경고 확인용)
+//   POST /__clock?advance=ms  가짜 서버의 시계를 앞으로 돌린다 (비밀번호 잠금 해제 확인용)
 
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -86,6 +87,9 @@ const server = createServer(async (request, response) => {
     } else if (url.pathname === '/__bad-row' && request.method === 'POST') {
       const sheet = script.sheet();
       sheet.humanRow(sheet.getLastRow() + 1, ['bad-row', '내일', '가나다', '많이', '']);
+      sendText(response, 200, 'ok');
+    } else if (url.pathname === '/__clock' && request.method === 'POST') {
+      script.advanceClock(Number(url.searchParams.get('advance')));
       sendText(response, 200, 'ok');
     } else {
       await handleStatic(response, url.pathname);

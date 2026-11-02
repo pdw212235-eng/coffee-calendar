@@ -77,7 +77,8 @@ p {
 .notice,
 section > h2,
 .summary,
-#summary-empty {
+#summary-empty,
+#note-form {
   margin-left: 8px;
   margin-right: 8px;
 }
@@ -386,7 +387,8 @@ section > h2 + * {
 }
 
 /* 16px 미만이면 iOS가 입력할 때 화면을 확대한다. */
-input {
+input,
+textarea {
   width: 100%;
   min-height: 44px;
   padding: 0 10px;
@@ -396,6 +398,27 @@ input {
   color: var(--text);
   font: inherit;
   font-size: 16px;
+}
+
+textarea {
+  display: block;
+  padding: 10px;
+  resize: vertical;
+}
+
+.plain-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.note-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .error {

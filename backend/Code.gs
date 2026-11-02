@@ -6,6 +6,9 @@ const TEXT_FORMAT = '@';
 const LOCK_TIMEOUT_MS = 10000;
 const MAX_NAME_LENGTH = 30;
 const MAX_CUPS = 999;
+const MAX_NOTE_LENGTH = 300;
+const MAX_PASSWORD_FAILURES = 10;
+const LOCKOUT_MS = 10 * 60 * 1000;
 const ID_PATTERN = /^[^\s=+\-@]\S{0,63}$/;
 const FORMULA_START = /^[=+\-@]/;
 
@@ -39,8 +42,19 @@ function doPost(e) {
   if (!expected) {
     return fail_('password_not_set');
   }
-  if (body.password !== expected) {
-    return fail_('bad_password');
+  const denial = passwordDenial_(body.password, expected);
+  if (denial) {
+    return fail_(denial);
+  }
+
+  if (body.action === 'saveNote') {
+    if (typeof body.note !== 'string' || body.note.trim().length > MAX_NOTE_LENGTH) {
+      return fail_('invalid_note');
+    }
+    withLock_(function () {
+      saveNote_(body.note.trim());
+    });
+    return json_({ ok: true });
   }
 
   if (body.action === 'save') {
@@ -67,6 +81,41 @@ function doPost(e) {
   return fail_('bad_request');
 }
 
+// 틀린 횟수와 잠금 시각은 요청 사이에 남아야 하므로 스크립트 속성에 둔다.
+// 잠금 중에는 맞는 비밀번호도 거부한다. 통과시키면 응답으로 계속 정답을 맞혀 볼 수 있다.
+function passwordDenial_(password, expected) {
+  const properties = PropertiesService.getScriptProperties();
+  let denial = null;
+  withLock_(function () {
+    if (Date.now() < Number(properties.getProperty('LOCKED_UNTIL'))) {
+      denial = 'locked';
+    } else if (password === expected) {
+      properties.deleteProperty('FAILED_COUNT');
+    } else {
+      const failures = Number(properties.getProperty('FAILED_COUNT')) + 1;
+      if (failures >= MAX_PASSWORD_FAILURES) {
+        properties.setProperty('LOCKED_UNTIL', String(Date.now() + LOCKOUT_MS));
+        properties.deleteProperty('FAILED_COUNT');
+        denial = 'locked';
+      } else {
+        properties.setProperty('FAILED_COUNT', String(failures));
+        denial = 'bad_password';
+      }
+    }
+  });
+  return denial;
+}
+
+// 시트 셀이 아니라 스크립트 속성에 둔다. 메모가 =나 -로 시작해도 수식으로 해석될 일이 없다.
+function saveNote_(note) {
+  const properties = PropertiesService.getScriptProperties();
+  if (note === '') {
+    properties.deleteProperty('NOTE');
+  } else {
+    properties.setProperty('NOTE', note);
+  }
+}
+
 function listRecords_() {
   const rows = recordsSheet_().getDataRange().getValues().slice(1);
   const records = [];
@@ -86,7 +135,8 @@ function listRecords_() {
   records.sort(function (a, b) {
     return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
   });
-  return { ok: true, records: records, skipped: skipped };
+  const note = PropertiesService.getScriptProperties().getProperty('NOTE') || '';
+  return { ok: true, records: records, skipped: skipped, note: note };
 }
 
 function upsertRecord_(record) {
